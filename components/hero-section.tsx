@@ -49,13 +49,13 @@ export default function HeroSection() {
             <div className="flex flex-wrap gap-4">
               <Link
                 href="/signup"
-                className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-red-600 text-white hover:bg-red-700 h-12 px-8 py-3 text-lg"
+                className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-red-600 text-white hover:bg-red-700 hover:scale-105 active:scale-95 hover:shadow-lg hover:shadow-red-600/30 active:shadow-md h-12 px-8 py-3 text-lg transform hover:-translate-y-1 active:translate-y-0"
               >
                 Get Started for Free
               </Link>
               <Link
                 href="#pricing"
-                className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border-2 border-white text-white hover:bg-white/10 h-12 px-8 py-3 text-lg"
+                className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border-2 border-white text-white hover:bg-white/20 hover:scale-105 active:scale-95 hover:shadow-lg hover:shadow-white/20 active:shadow-md h-12 px-8 py-3 text-lg transform hover:-translate-y-1 active:translate-y-0"
               >
                 View Pricing
               </Link>
