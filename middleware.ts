@@ -24,7 +24,7 @@ export async function middleware(request: NextRequest) {
             secure: process.env.NODE_ENV === 'production',
             sameSite: 'lax',
             domain: process.env.NODE_ENV === 'production'
-              ? '.vercel.app' // Adjust this to your domain
+              ? 'superawards.vercel.app'
               : undefined
           })
         },
@@ -36,7 +36,7 @@ export async function middleware(request: NextRequest) {
             secure: process.env.NODE_ENV === 'production',
             sameSite: 'lax',
             domain: process.env.NODE_ENV === 'production'
-              ? '.vercel.app' // Adjust this to your domain
+              ? 'superawards.vercel.app'
               : undefined
           })
         },
