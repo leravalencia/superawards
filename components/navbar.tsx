@@ -1,14 +1,36 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Award, Menu, X } from "lucide-react"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
+import { createClient } from "@/lib/supabase"
 
 export default function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [user, setUser] = useState<any>(null)
   const pathname = usePathname()
+  const supabase = createClient()
+
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      setUser(user)
+    }
+
+    getUser()
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null)
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut()
+  }
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen)
@@ -55,19 +77,37 @@ export default function Navbar() {
 
           {/* Auth Buttons - Desktop */}
           <div className="hidden md:flex items-center space-x-4">
-            {/* Login Button - Outline style */}
-            <Link href="/login">
-              <button className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-gray-300 bg-transparent hover:bg-gray-800 hover:border-white h-10 px-4 py-2 text-white">
-                Log In
-              </button>
-            </Link>
+            {!user ? (
+              <>
+                {/* Login Button - Outline style */}
+                <Link href="/auth/login">
+                  <button className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-gray-300 bg-transparent hover:bg-gray-800 hover:border-white h-10 px-4 py-2 text-white">
+                    Log In
+                  </button>
+                </Link>
 
-            {/* Sign Up Button - Solid style */}
-            <Link href="/signup">
-              <button className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-red-600 text-white hover:bg-red-700 h-10 px-4 py-2">
-                Sign Up
-              </button>
-            </Link>
+                {/* Sign Up Button - Solid style */}
+                <Link href="/auth/signup">
+                  <button className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-red-600 text-white hover:bg-red-700 h-10 px-4 py-2">
+                    Sign Up
+                  </button>
+                </Link>
+              </>
+            ) : (
+              <div className="flex items-center space-x-4">
+                <Link href="/dashboard">
+                  <button className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-red-600 text-white hover:bg-red-700 h-10 px-4 py-2">
+                    Dashboard
+                  </button>
+                </Link>
+                <button
+                  onClick={handleSignOut}
+                  className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-gray-300 bg-transparent hover:bg-gray-800 hover:border-white h-10 px-4 py-2 text-white"
+                >
+                  Sign Out
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Mobile Menu Button */}
@@ -101,20 +141,35 @@ export default function Navbar() {
                 {link.name}
               </Link>
             ))}
-            <div className="pt-5 border-t border-gray-700 flex flex-col space-y-4">
-              {/* Mobile Login Button */}
-              <Link href="/login" className="w-full">
-                <button className="w-full inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-gray-300 bg-transparent hover:bg-gray-800 hover:border-white h-11 px-4 py-2 text-white">
-                  Log In
-                </button>
-              </Link>
-
-              {/* Mobile Sign Up Button */}
-              <Link href="/signup" className="w-full">
-                <button className="w-full inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-red-600 text-white hover:bg-red-700 h-11 px-4 py-2">
-                  Sign Up
-                </button>
-              </Link>
+            <div className="pt-4 space-y-3">
+              {!user ? (
+                <>
+                  <Link href="/auth/login" className="block">
+                    <button className="w-full inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-gray-300 bg-transparent hover:bg-gray-800 hover:border-white h-10 px-4 py-2 text-white">
+                      Log In
+                    </button>
+                  </Link>
+                  <Link href="/auth/signup" className="block">
+                    <button className="w-full inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-red-600 text-white hover:bg-red-700 h-10 px-4 py-2">
+                      Sign Up
+                    </button>
+                  </Link>
+                </>
+              ) : (
+                <div className="space-y-3">
+                  <Link href="/dashboard" className="block">
+                    <button className="w-full inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-red-600 text-white hover:bg-red-700 h-10 px-4 py-2">
+                      Dashboard
+                    </button>
+                  </Link>
+                  <button
+                    onClick={handleSignOut}
+                    className="w-full inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-gray-300 bg-transparent hover:bg-gray-800 hover:border-white h-10 px-4 py-2 text-white"
+                  >
+                    Sign Out
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>

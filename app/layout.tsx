@@ -1,17 +1,24 @@
-import type React from "react"
-import type { Metadata } from "next"
-import { Inter } from "next/font/google"
+import { type Metadata } from 'next'
+import { Geist, Geist_Mono } from 'next/font/google'
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import Navbar from "@/components/navbar" // Fixed import path (lowercase 'n')
 
-const inter = Inter({ subsets: ["latin"] })
+const geistSans = Geist({
+  variable: '--font-geist-sans',
+  subsets: ['latin'],
+})
+
+const geistMono = Geist_Mono({
+  variable: '--font-geist-mono',
+  subsets: ['latin'],
+})
 
 export const metadata: Metadata = {
   title: "Award-AI | Find and Apply for Awards with AI",
   description:
     "Discover relevant awards online and offline, and get help with submissions using our AI-powered platform.",
-    generator: 'v0.dev'
+  generator: 'v0.dev'
 }
 
 export default function RootLayout({
@@ -21,7 +28,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={inter.className}>
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <ThemeProvider
           attribute="class"
           defaultTheme="light"
@@ -35,7 +42,5 @@ export default function RootLayout({
     </html>
   )
 }
-
-
 
 import './globals.css'
