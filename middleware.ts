@@ -21,6 +21,11 @@ export async function middleware(request: NextRequest) {
             name,
             value,
             ...options,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax',
+            domain: process.env.NODE_ENV === 'production'
+              ? '.vercel.app' // Adjust this to your domain
+              : undefined
           })
         },
         remove(name: string, options: CookieOptions) {
@@ -28,6 +33,11 @@ export async function middleware(request: NextRequest) {
             name,
             value: '',
             ...options,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax',
+            domain: process.env.NODE_ENV === 'production'
+              ? '.vercel.app' // Adjust this to your domain
+              : undefined
           })
         },
       },
@@ -38,12 +48,17 @@ export async function middleware(request: NextRequest) {
 
   // If user is signed in and the current path is / redirect the user to /dashboard
   if (session && request.nextUrl.pathname === "/") {
-    return NextResponse.redirect(new URL('/dashboard', request.url))
+    const redirectUrl = request.nextUrl.clone()
+    redirectUrl.pathname = '/dashboard'
+    return NextResponse.redirect(redirectUrl)
   }
 
   // If user is not signed in and the current path is /dashboard redirect the user to /auth/login
   if (!session && request.nextUrl.pathname.startsWith('/dashboard')) {
-    return NextResponse.redirect(new URL('/auth/login', request.url))
+    const redirectUrl = request.nextUrl.clone()
+    redirectUrl.pathname = '/auth/login'
+    redirectUrl.searchParams.set('from', request.nextUrl.pathname)
+    return NextResponse.redirect(redirectUrl)
   }
 
   return response

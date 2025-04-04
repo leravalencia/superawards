@@ -19,11 +19,12 @@ export default function SignUpPage() {
     setLoading(true)
 
     try {
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
       const { error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          emailRedirectTo: `${siteUrl}/auth/callback`,
         },
       })
 
@@ -83,7 +84,9 @@ export default function SignUpPage() {
           </div>
 
           {error && (
-            <div className="text-red-500 text-sm text-center">{error}</div>
+            <div className={`text-sm text-center ${error.includes('Check your email') ? 'text-green-600' : 'text-red-500'}`}>
+              {error}
+            </div>
           )}
 
           <div>
