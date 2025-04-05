@@ -27,12 +27,12 @@ export async function GET(request: NextRequest) {
               name,
               value,
               ...options,
-              // More permissive settings for testing
-              secure: true,
-              sameSite: 'none',
-              path: '/',
-              // Remove domain restriction
-              domain: undefined
+              // Add these options for better security in production
+              secure: process.env.NODE_ENV === 'production',
+              sameSite: 'lax',
+              domain: process.env.NODE_ENV === 'production' 
+                ? '.vercel.app' // Adjust this to your domain
+                : undefined
             })
           },
           remove(name: string, options: CookieOptions) {
