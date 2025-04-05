@@ -4,7 +4,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
-  const next = searchParams.get('next') ?? '/'
+  const next = searchParams.get('next') ?? '/dashboard' // Default redirect to dashboard
 
   console.log('Auth callback received:', { code, origin, next })
 
@@ -64,10 +64,11 @@ export async function GET(request: NextRequest) {
     console.log('Auth exchange result:', { error })
     
     if (!error) {
-      return response
+      // After successful authentication, redirect to dashboard
+      return NextResponse.redirect(`${origin}/dashboard`)
     }
   }
 
-  // Return the user to an error page with instructions
-  return NextResponse.redirect(`${origin}/auth/auth-code-error`)
+  // If there's an error or no code, redirect to login
+  return NextResponse.redirect(`${origin}/auth/login`)
 } 
