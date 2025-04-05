@@ -23,26 +23,37 @@ export async function GET(request: NextRequest) {
           },
           set(name: string, value: string, options: CookieOptions) {
             console.log(`Setting cookie ${name}:`, value)
+            // Get the site URL from environment variable
+            const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+            const domain = new URL(siteUrl).hostname
+            
             response.cookies.set({
               name,
               value,
               ...options,
               secure: true,
-              sameSite: 'none',
+              sameSite: 'lax',
               path: '/',
-              domain: undefined
+              // Set domain only in production
+              domain: process.env.NODE_ENV === 'production' ? domain : undefined,
+              httpOnly: true
             })
           },
           remove(name: string, options: CookieOptions) {
             console.log(`Removing cookie ${name}`)
+            const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+            const domain = new URL(siteUrl).hostname
+            
             response.cookies.set({
               name,
               value: '',
               ...options,
               secure: true,
-              sameSite: 'none',
+              sameSite: 'lax',
               path: '/',
-              domain: undefined
+              // Set domain only in production
+              domain: process.env.NODE_ENV === 'production' ? domain : undefined,
+              httpOnly: true
             })
           },
         },
