@@ -14,30 +14,35 @@ export async function middleware(request: NextRequest) {
     {
       cookies: {
         get(name: string) {
-          return request.cookies.get(name)?.value
+          const cookie = request.cookies.get(name)
+          console.log(`Getting cookie ${name}:`, cookie?.value)
+          return cookie?.value
         },
         set(name: string, value: string, options: CookieOptions) {
+          console.log(`Setting cookie ${name}:`, value)
           response.cookies.set({
             name,
             value,
             ...options,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
-            domain: process.env.NODE_ENV === 'production'
-              ? 'award-ai.com'
-              : undefined
+            // More permissive settings for testing
+            secure: true,
+            sameSite: 'none',
+            path: '/',
+            // Remove domain restriction
+            domain: undefined
           })
         },
         remove(name: string, options: CookieOptions) {
+          console.log(`Removing cookie ${name}`)
           response.cookies.set({
             name,
             value: '',
             ...options,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
-            domain: process.env.NODE_ENV === 'production'
-              ? 'award-ai.com'
-              : undefined
+            secure: true,
+            sameSite: 'none',
+            path: '/',
+            // Remove domain restriction
+            domain: undefined
           })
         },
       },
@@ -45,6 +50,7 @@ export async function middleware(request: NextRequest) {
   )
 
   const { data: { session } } = await supabase.auth.getSession()
+  console.log('Session in middleware:', session)
 
   // If user is signed in and the current path is / redirect the user to /dashboard
   if (session && request.nextUrl.pathname === "/") {

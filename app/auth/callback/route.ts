@@ -6,6 +6,8 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get('code')
   const next = searchParams.get('next') ?? '/'
 
+  console.log('Auth callback received:', { code, origin, next })
+
   if (code) {
     const response = NextResponse.redirect(`${origin}${next}`)
 
@@ -15,31 +17,35 @@ export async function GET(request: NextRequest) {
       {
         cookies: {
           get(name: string) {
-            return request.cookies.get(name)?.value
+            const cookie = request.cookies.get(name)
+            console.log(`Getting cookie ${name}:`, cookie?.value)
+            return cookie?.value
           },
           set(name: string, value: string, options: CookieOptions) {
+            console.log(`Setting cookie ${name}:`, value)
             response.cookies.set({
               name,
               value,
               ...options,
-              // Add these options for better security in production
-              secure: process.env.NODE_ENV === 'production',
-              sameSite: 'lax',
-              domain: process.env.NODE_ENV === 'production' 
-                ? 'award-ai.com'
-                : undefined
+              // More permissive settings for testing
+              secure: true,
+              sameSite: 'none',
+              path: '/',
+              // Remove domain restriction
+              domain: undefined
             })
           },
           remove(name: string, options: CookieOptions) {
+            console.log(`Removing cookie ${name}`)
             response.cookies.set({
               name,
               value: '',
               ...options,
-              secure: process.env.NODE_ENV === 'production',
-              sameSite: 'lax',
-              domain: process.env.NODE_ENV === 'production'
-                ? 'award-ai.com'
-                : undefined
+              secure: true,
+              sameSite: 'none',
+              path: '/',
+              // Remove domain restriction
+              domain: undefined
             })
           },
         },
@@ -47,6 +53,8 @@ export async function GET(request: NextRequest) {
     )
 
     const { error } = await supabase.auth.exchangeCodeForSession(code)
+    console.log('Auth exchange result:', { error })
+    
     if (!error) {
       return response
     }
