@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
               secure: process.env.NODE_ENV === 'production',
               sameSite: 'lax',
               domain: process.env.NODE_ENV === 'production' 
-                ? 'superawards.vercel.app'
+                ? 'award-ai.com'
                 : undefined
             })
           },
@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
               secure: process.env.NODE_ENV === 'production',
               sameSite: 'lax',
               domain: process.env.NODE_ENV === 'production'
-                ? 'superawards.vercel.app'
+                ? 'award-ai.com'
                 : undefined
             })
           },
