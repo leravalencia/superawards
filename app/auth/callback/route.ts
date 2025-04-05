@@ -1,22 +1,62 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
-import { NextResponse } from 'next/server'
+import { createServerClient, type CookieOptions } from '@supabase/ssr'
+import { type NextRequest, NextResponse } from 'next/server'
 
-export const dynamic = 'force-dynamic'
+export async function GET(request: NextRequest) {
+  const { searchParams, origin } = new URL(request.url)
+  const code = searchParams.get('code')
+  const next = searchParams.get('next') ?? '/'
 
-export async function GET(request: Request) {
-  const requestUrl = new URL(request.url)
-  const code = requestUrl.searchParams.get('code')
+  console.log('Auth callback received:', { code, origin, next })
 
   if (code) {
-    const supabase = createRouteHandlerClient({ cookies })
+    const response = NextResponse.redirect(`${origin}${next}`)
+
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          get(name: string) {
+            const cookie = request.cookies.get(name)
+            console.log(`Getting cookie ${name}:`, cookie?.value)
+            return cookie?.value
+          },
+          set(name: string, value: string, options: CookieOptions) {
+            console.log(`Setting cookie ${name}:`, value)
+            response.cookies.set({
+              name,
+              value,
+              ...options,
+              secure: true,
+              sameSite: 'none',
+              path: '/',
+              domain: undefined
+            })
+          },
+          remove(name: string, options: CookieOptions) {
+            console.log(`Removing cookie ${name}`)
+            response.cookies.set({
+              name,
+              value: '',
+              ...options,
+              secure: true,
+              sameSite: 'none',
+              path: '/',
+              domain: undefined
+            })
+          },
+        },
+      }
+    )
+
     const { error } = await supabase.auth.exchangeCodeForSession(code)
+    console.log('Auth exchange result:', { error })
     
     if (!error) {
-      return NextResponse.redirect(new URL('/dashboard', request.url))
+      return response
     }
   }
 
   // Return the user to an error page with instructions
-  return NextResponse.redirect(new URL('/auth/auth-code-error', request.url))
+  return NextResponse.redirect(`${origin}/auth/auth-code-error`)
 } 
