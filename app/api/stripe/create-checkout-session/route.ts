@@ -1,85 +1,31 @@
-// app/api/stripe/create-checkout-session/route.ts
-import { NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
 import Stripe from 'stripe';
+import { NextResponse } from 'next/server';
 
-export async function POST(request: Request) {
+export async function POST(req: Request) {
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-    apiVersion: '2025-03-31.basil',
+    apiVersion: '2023-10-16',
   });
 
+  const body = await req.json();
+
   try {
-    const { priceId, successUrl, cancelUrl } = await request.json();
-    
-    // Get the user from Supabase auth
-    const supabase = createRouteHandlerClient({ cookies });
-    const { data: { session } } = await supabase.auth.getSession();
-    
-    if (!session?.user) {
-      return NextResponse.json(
-        { error: 'You must be logged in to create a checkout session' },
-        { status: 401 }
-      );
-    }
-    
-    const userId = session.user.id;
-    
-    // Check if user already has a Stripe customer ID
-    const { data: customerData } = await supabase
-      .from('stripe_customers')
-      .select('stripe_customer_id')
-      .eq('user_id', userId)
-      .single();
-    
-    let customerId;
-    
-    if (customerData?.stripe_customer_id) {
-      // Use existing customer
-      customerId = customerData.stripe_customer_id;
-    } else {
-      // Create a new customer in Stripe
-      const customer = await stripe.customers.create({
-        email: session.user.email,
-        metadata: {
-          userId,
-        },
-      });
-      
-      customerId = customer.id;
-      
-      // Save the customer ID to the database
-      await supabase.from('stripe_customers').insert({
-        user_id: userId,
-        stripe_customer_id: customerId,
-      });
-    }
-    
-    // Create a checkout session
-    const checkoutSession = await stripe.checkout.sessions.create({
-      customer: customerId,
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      mode: 'payment',
       line_items: [
         {
-          price: priceId,
+          price: body.priceId,
           quantity: 1,
         },
       ],
-      mode: 'subscription',
-      success_url: successUrl,
-      cancel_url: cancelUrl,
-      subscription_data: {
-        metadata: {
-          userId,
-        },
-      },
+      success_url: `${process.env.NEXT_PUBLIC_SITE_URL}/success`,
+      cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL}/cancel`,
+      customer_email: body.email,
     });
-    
-    return NextResponse.json({ sessionId: checkoutSession.id, url: checkoutSession.url });
-  } catch (error) {
-    console.error('Error creating checkout session:', error);
-    return NextResponse.json(
-      { error: 'Failed to create checkout session' },
-      { status: 500 }
-    );
+
+    return NextResponse.json({ url: session.url });
+  } catch (err) {
+    console.error('Stripe Error:', err);
+    return NextResponse.json({ error: 'Error creating checkout session' }, { status: 500 });
   }
 }
