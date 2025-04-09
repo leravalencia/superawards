@@ -1,135 +1,158 @@
 // components/subscription/manage-subscription.tsx
 "use client"
 
-import { useState } from 'react'
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { useToast } from "@/components/ui/use-toast"
-import { Calendar, CreditCard } from 'lucide-react'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Check } from "lucide-react"
+import { loadStripe } from '@stripe/stripe-js'
+import { useState } from "react"
 
-interface SubscriptionDetails {
-  tier: string
-  status: string
-  currentPeriodEnd: string
-  cancelAtPeriodEnd: boolean
-  amount: number
-  currency: string
-  interval: string
+const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!)
+
+interface SubscriptionTier {
+  title: string
+  description: string
+  price: string
+  features: string[]
+  priceId: string
+  isCurrent?: boolean
 }
 
-interface ManageSubscriptionProps {
-  subscription: SubscriptionDetails
-}
+export function ManageSubscription({ currentPlan }: { currentPlan: string }) {
+  const [loading, setLoading] = useState(false)
 
-export default function ManageSubscription({ subscription }: ManageSubscriptionProps) {
-  const [isLoading, setIsLoading] = useState(false)
-  const { toast } = useToast()
+  const tiers: SubscriptionTier[] = [
+    {
+      title: "Free",
+      description: "Basic features for getting started",
+      price: "$0",
+      features: [
+        "5 awards per month",
+        "Basic templates",
+        "Email support"
+      ],
+      priceId: "",
+      isCurrent: currentPlan === 'free'
+    },
+    {
+      title: "Premium",
+      description: "Advanced features for growing teams",
+      price: "$29",
+      features: [
+        "Unlimited awards",
+        "Premium templates",
+        "Priority support",
+        "Custom branding"
+      ],
+      priceId: process.env.NEXT_PUBLIC_STRIPE_PREMIUM_PRICE_ID!,
+      isCurrent: currentPlan === 'premium'
+    },
+    {
+      title: "Business",
+      description: "Complete solution for organizations",
+      price: "$99",
+      features: [
+        "Everything in Premium",
+        "Team management",
+        "API access",
+        "Custom integrations"
+      ],
+      priceId: process.env.NEXT_PUBLIC_STRIPE_BUSINESS_PRICE_ID!,
+      isCurrent: currentPlan === 'business'
+    }
+  ]
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    })
-  }
+  const handleUpgrade = async (priceId: string) => {
+    if (!priceId) return
 
-  const formatCurrency = (amount: number, currency: string) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: currency.toUpperCase()
-    }).format(amount)
+    try {
+      setLoading(true)
+      const stripe = await stripePromise
+      if (!stripe) throw new Error('Stripe failed to load')
+
+      const response = await fetch('/api/stripe/create-checkout-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ priceId }),
+      })
+
+      if (!response.ok) throw new Error('Failed to create checkout session')
+
+      const { sessionId } = await response.json()
+      const { error } = await stripe.redirectToCheckout({ sessionId })
+      
+      if (error) throw error
+    } catch (error) {
+      console.error('Checkout error:', error)
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleManageSubscription = async () => {
-    setIsLoading(true)
-    
     try {
+      setLoading(true)
       const response = await fetch('/api/stripe/portal-session', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          returnUrl: `${window.location.origin}/dashboard/settings`,
-        }),
       })
-      
+
+      if (!response.ok) throw new Error('Failed to create portal session')
+
       const { url } = await response.json()
-      
-      if (url) {
-        window.location.href = url
-      } else {
-        throw new Error('Failed to create portal session')
-      }
+      window.location.href = url
     } catch (error) {
-      console.error('Error creating portal session:', error)
-      toast({
-        title: "Error",
-        description: "Failed to access billing portal",
-        variant: "destructive"
-      })
+      console.error('Portal error:', error)
     } finally {
-      setIsLoading(false)
+      setLoading(false)
     }
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Your Subscription</CardTitle>
-        <CardDescription>Manage your subscription</CardDescription>
-      </CardHeader>
-      
-      <CardContent className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="p-4 bg-gray-50 rounded-lg">
-            <div className="text-sm text-gray-500 mb-1">Current Plan</div>
-            <div className="text-xl font-bold capitalize">{subscription.tier}</div>
-          </div>
-          
-          <div className="p-4 bg-gray-50 rounded-lg">
-            <div className="text-sm text-gray-500 mb-1">Status</div>
-            <div className="text-xl font-bold capitalize">
-              {subscription.status}
-              {subscription.cancelAtPeriodEnd && " (Cancels soon)"}
-            </div>
-          </div>
-          
-          <div className="p-4 bg-gray-50 rounded-lg">
-            <div className="text-sm text-gray-500 mb-1">Billing Amount</div>
-            <div className="text-xl font-bold">
-              {subscription.amount > 0 
-                ? `${formatCurrency(subscription.amount, subscription.currency)}/${subscription.interval}`
-                : "Free"}
-            </div>
-          </div>
-          
-          <div className="p-4 bg-gray-50 rounded-lg flex items-start">
-            <Calendar className="h-5 w-5 text-indigo-600 mr-2 mt-1" />
-            <div>
-              <div className="text-sm text-gray-500 mb-1">Next Billing Date</div>
-              <div className="text-xl font-bold">
-                {subscription.amount > 0 
-                  ? formatDate(subscription.currentPeriodEnd)
-                  : "N/A"}
-              </div>
-            </div>
-          </div>
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-2xl font-bold">Subscription Management</h2>
+          <p className="text-gray-500">Manage your subscription and billing</p>
         </div>
-      </CardContent>
-      
-      <CardFooter>
-        {subscription.tier !== 'free' && (
+        {currentPlan !== 'free' && (
           <Button 
             onClick={handleManageSubscription}
-            disabled={isLoading}
-            className="bg-indigo-600 hover:bg-indigo-700"
+            disabled={loading}
           >
-            <CreditCard className="h-4 w-4 mr-2" />
-            {isLoading ? "Loading..." : "Manage Billing"}
+            Manage Subscription
           </Button>
         )}
-      </CardFooter>
-    </Card>
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-3">
+        {tiers.map((tier) => (
+          <Card key={tier.title} className={tier.isCurrent ? 'ring-2 ring-primary' : ''}>
+            <CardHeader>
+              <CardTitle>{tier.title}</CardTitle>
+              <CardDescription>{tier.description}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold mb-4">{tier.price}<span className="text-sm text-gray-500">/month</span></div>
+              <ul className="space-y-2 mb-6">
+                {tier.features.map((feature) => (
+                  <li key={feature} className="flex items-center">
+                    <Check className="w-4 h-4 mr-2 text-green-500" />
+                    {feature}
+                  </li>
+                ))}
+              </ul>
+              <Button
+                className="w-full"
+                variant={tier.isCurrent ? "outline" : "default"}
+                onClick={() => handleUpgrade(tier.priceId)}
+                disabled={tier.isCurrent || loading || !tier.priceId}
+              >
+                {tier.isCurrent ? 'Current Plan' : 'Upgrade'}
+              </Button>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
   )
 }

@@ -1,7 +1,10 @@
-import Link from "next/link"
-import { CheckCircle } from "lucide-react"
-import SectionHeading from "./section-heading"
-import AIBackground from "./ai-background"
+"use client"
+
+import { Button } from "@/components/ui/button"
+import { Check } from "lucide-react"
+import { loadStripe } from '@stripe/stripe-js'
+
+const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!)
 
 interface PricingTierProps {
   title: string
@@ -11,7 +14,8 @@ interface PricingTierProps {
   ctaText: string
   ctaLink: string
   isPopular?: boolean
-  variant?: "default" | "highlight" | "dark"
+  variant?: 'default' | 'outline'
+  priceId?: string
 }
 
 function PricingTier({
@@ -22,122 +26,131 @@ function PricingTier({
   ctaText,
   ctaLink,
   isPopular = false,
-  variant = "default",
+  variant = 'default',
+  priceId
 }: PricingTierProps) {
-  const borderColor = {
-    default: "border-gray-300",
-    highlight: "border-red-600",
-    dark: "border-black",
-  }[variant]
+  const handleCheckout = async () => {
+    if (!priceId) {
+      window.location.href = ctaLink
+      return
+    }
 
-  const headerBg = {
-    default: "bg-gray-100",
-    highlight: "bg-red-50",
-    dark: "bg-gray-100",
-  }[variant]
+    try {
+      const stripe = await stripePromise
+      if (!stripe) throw new Error('Stripe failed to load')
 
-  const buttonBg = {
-    default: "bg-black hover:bg-gray-800",
-    highlight: "bg-red-600 hover:bg-red-700",
-    dark: "bg-black hover:bg-gray-800",
-  }[variant]
+      const response = await fetch('/api/stripe/create-checkout-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ priceId }),
+      })
 
-  const transform = isPopular ? "translate-y-[-1rem]" : ""
+      if (!response.ok) throw new Error('Failed to create checkout session')
+
+      const { sessionId } = await response.json()
+      const { error } = await stripe.redirectToCheckout({ sessionId })
+      
+      if (error) throw error
+    } catch (error) {
+      console.error('Checkout error:', error)
+    }
+  }
 
   return (
-    <div
-      className={`border-4 ${borderColor} flex flex-col shadow-xl transform transition-transform hover:scale-105 ${transform} bg-white rounded-lg overflow-hidden relative`}
-    >
-      {isPopular && (
-        <div className="absolute top-0 right-0 bg-red-600 text-white px-4 py-2 text-base font-bold rounded-bl-lg rounded-tr-lg">
-          POPULAR
-        </div>
-      )}
-
-      <div className={`${headerBg} p-6`}>
-        <h3 className="text-3xl font-black text-black">{title}</h3>
-        <p className="text-lg font-medium text-gray-700">{description}</p>
-        <div className="mt-6 text-4xl font-black text-black">{price}</div>
+    <div className={`flex flex-col p-6 mx-auto max-w-lg text-center text-gray-900 bg-white rounded-lg border border-gray-100 shadow dark:border-gray-600 xl:p-8 dark:bg-gray-800 dark:text-white ${isPopular ? 'ring-2 ring-blue-600' : ''}`}>
+      <h3 className="mb-4 text-2xl font-semibold">{title}</h3>
+      <p className="font-light text-gray-500 sm:text-lg dark:text-gray-400">{description}</p>
+      <div className="flex justify-center items-baseline my-8">
+        <span className="mr-2 text-5xl font-extrabold">{price}</span>
+        <span className="text-gray-500 dark:text-gray-400">/month</span>
       </div>
-
-      <div className="flex-grow p-6">
-        <ul className="space-y-4">
-          {features.map((feature, index) => (
-            <li key={index} className="flex items-start">
-              <CheckCircle className="h-6 w-6 text-red-600 mr-3 shrink-0 mt-0.5" />
-              <span className="text-lg font-medium">{feature}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      <div className="p-6">
-        <Link
-          href={ctaLink}
-          className={`inline-block w-full ${buttonBg} text-white font-bold text-lg py-6 px-4 rounded-md text-center transition-colors`}
-        >
-          {ctaText}
-        </Link>
-      </div>
+      <ul role="list" className="mb-8 space-y-4 text-left">
+        {features.map((feature, index) => (
+          <li key={index} className="flex items-center space-x-3">
+            <Check className="flex-shrink-0 w-5 h-5 text-green-500 dark:text-green-400" />
+            <span>{feature}</span>
+          </li>
+        ))}
+      </ul>
+      <Button
+        variant={variant}
+        className="w-full"
+        onClick={handleCheckout}
+      >
+        {ctaText}
+      </Button>
     </div>
   )
 }
 
-export default function PricingSection() {
+interface PricingSectionProps {
+  currentPlan: string
+  isAuthenticated: boolean
+}
+
+export function PricingSection({ currentPlan, isAuthenticated }: PricingSectionProps) {
   const pricingTiers = [
     {
       title: "Free",
-      description: "Basic award discovery",
+      description: "Perfect for getting started",
       price: "$0",
-      features: ["Search for relevant awards", "Award announcements", "Basic filtering options"],
-      ctaText: "Sign Up",
-      ctaLink: "/signup",
-      variant: "default" as const,
+      features: [
+        "5 awards per month",
+        "Basic templates",
+        "Email support",
+        "Community access"
+      ],
+      ctaText: isAuthenticated ? (currentPlan === 'free' ? 'Current Plan' : 'Downgrade') : 'Get Started',
+      ctaLink: isAuthenticated ? '#' : '/auth/signup',
+      variant: 'outline' as const
     },
     {
       title: "Premium",
-      description: "Enhanced award tracking",
-      price: "$19.99/month",
+      description: "Best for growing teams",
+      price: "$29",
       features: [
-        "All Free tier features",
-        "Monthly newsletter with curated opportunities",
-        "Personal cabinet with award calendar",
-        "Deadline reminders",
+        "Unlimited awards",
+        "Premium templates",
+        "Priority support",
+        "Custom branding",
+        "Analytics dashboard"
       ],
-      ctaText: "Get Started",
-      ctaLink: "/signup?plan=premium",
-      isPopular: true,
-      variant: "highlight" as const,
+      ctaText: isAuthenticated ? (currentPlan === 'premium' ? 'Current Plan' : 'Upgrade') : 'Get Started',
+      ctaLink: isAuthenticated ? '#' : '/auth/signup?plan=premium',
+      priceId: process.env.NEXT_PUBLIC_STRIPE_PREMIUM_PRICE_ID,
+      isPopular: true
     },
     {
-      title: "Custom",
-      description: "Full submission support",
-      price: "Custom Pricing",
+      title: "Business",
+      description: "For large organizations",
+      price: "$99",
       features: [
-        "All Premium tier features",
-        "Advanced calendar functionality",
-        "Submission management tools",
-        "Personalized submission assistance",
-        "Dedicated account manager",
+        "Everything in Premium",
+        "Team management",
+        "API access",
+        "Custom integrations",
+        "Dedicated support"
       ],
-      ctaText: "Contact Us",
-      ctaLink: "/contact",
-      variant: "dark" as const,
-    },
+      ctaText: isAuthenticated ? (currentPlan === 'business' ? 'Current Plan' : 'Upgrade') : 'Get Started',
+      ctaLink: isAuthenticated ? '#' : '/auth/signup?plan=business',
+      priceId: process.env.NEXT_PUBLIC_STRIPE_BUSINESS_PRICE_ID
+    }
   ]
 
   return (
-    <section id="pricing" className="py-20 bg-white relative overflow-hidden">
-      <AIBackground variant="light" />
-
-      <div className="container mx-auto px-4 relative z-10">
-        <SectionHeading
-          title="Choose Your Plan"
-          highlight=" Plan "
-          description="Select the plan that best fits your award application needs"
-        />
-
-        <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+    <section className="bg-white dark:bg-gray-900">
+      <div className="py-8 px-4 mx-auto max-w-screen-xl lg:py-16 lg:px-6">
+        <div className="mx-auto max-w-screen-md text-center mb-8 lg:mb-12">
+          <h2 className="mb-4 text-4xl tracking-tight font-extrabold text-gray-900 dark:text-white">
+            Simple, transparent pricing
+          </h2>
+          <p className="mb-5 font-light text-gray-500 sm:text-xl dark:text-gray-400">
+            Choose the plan that best fits your needs
+          </p>
+        </div>
+        <div className="space-y-8 lg:grid lg:grid-cols-3 sm:gap-6 xl:gap-10 lg:space-y-0">
           {pricingTiers.map((tier, index) => (
             <PricingTier key={index} {...tier} />
           ))}
@@ -145,5 +158,4 @@ export default function PricingSection() {
       </div>
     </section>
   )
-}
-
+} 

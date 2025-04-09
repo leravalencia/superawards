@@ -28,8 +28,46 @@ import {
   SidebarInset,
 } from "@/components/ui/sidebar"
 import Link from "next/link"
+import { createServerClient, type CookieOptions } from '@supabase/ssr'
+import { cookies } from 'next/headers'
+import { ManageSubscription } from '@/components/subscription/manage-subscription'
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
+  const cookieStore = await cookies()
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value
+        },
+        set(name: string, value: string, options: CookieOptions) {
+          cookieStore.set({ name, value, ...options })
+        },
+        remove(name: string, options: CookieOptions) {
+          cookieStore.set({ name, value: '', ...options, maxAge: 0 })
+        },
+      },
+    }
+  )
+
+  const { data: { session } } = await supabase.auth.getSession()
+  
+  let currentPlan = 'free'
+  
+  if (session?.user) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('subscription_tier')
+      .eq('id', session.user.id)
+      .single()
+      
+    if (profile?.subscription_tier) {
+      currentPlan = profile.subscription_tier
+    }
+  }
+
   return (
     <SidebarProvider>
       <div className="flex min-h-screen bg-gray-50">
@@ -367,6 +405,8 @@ export default function DashboardPage() {
                 </CardContent>
               </Card>
             </div>
+
+            <ManageSubscription currentPlan={currentPlan} />
           </main>
         </SidebarInset>
       </div>

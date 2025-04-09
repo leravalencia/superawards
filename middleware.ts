@@ -14,13 +14,9 @@ export async function middleware(request: NextRequest) {
     {
       cookies: {
         get(name: string) {
-          const cookie = request.cookies.get(name)
-          console.log(`Getting cookie ${name}:`, cookie?.value)
-          return cookie?.value
+          return request.cookies.get(name)?.value
         },
         set(name: string, value: string, options: CookieOptions) {
-          console.log(`Setting cookie ${name}:`, value)
-          // Get the site URL from environment variable
           const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
           const domain = new URL(siteUrl).hostname
           
@@ -28,16 +24,12 @@ export async function middleware(request: NextRequest) {
             name,
             value,
             ...options,
-            secure: true,
+            secure: process.env.NODE_ENV === 'production',
             sameSite: 'lax',
-            path: '/',
-            // Set domain only in production
-            domain: process.env.NODE_ENV === 'production' ? domain : undefined,
-            httpOnly: true
+            domain: process.env.NODE_ENV === 'production' ? domain : undefined
           })
         },
         remove(name: string, options: CookieOptions) {
-          console.log(`Removing cookie ${name}`)
           const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
           const domain = new URL(siteUrl).hostname
           
@@ -45,15 +37,12 @@ export async function middleware(request: NextRequest) {
             name,
             value: '',
             ...options,
-            secure: true,
+            secure: process.env.NODE_ENV === 'production',
             sameSite: 'lax',
-            path: '/',
-            // Set domain only in production
-            domain: process.env.NODE_ENV === 'production' ? domain : undefined,
-            httpOnly: true
+            domain: process.env.NODE_ENV === 'production' ? domain : undefined
           })
-        },
-      },
+        }
+      }
     }
   )
 

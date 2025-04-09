@@ -39,7 +39,10 @@ export default async function PricingPage() {
         </p>
       </div>
       
-      <PricingTable currentPlan={currentPlan} />
+      <PricingTable 
+        currentPlan={currentPlan} 
+        isAuthenticated={!!session}
+      />
     </div>
   )
 }

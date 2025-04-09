@@ -60,10 +60,24 @@ export async function GET(request: NextRequest) {
       }
     )
 
-    const { error } = await supabase.auth.exchangeCodeForSession(code)
+    const { data: { session }, error } = await supabase.auth.exchangeCodeForSession(code)
     console.log('Auth exchange result:', { error })
     
-    if (!error) {
+    if (!error && session?.user) {
+      // Create or update user profile with default plan
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .upsert({
+          id: session.user.id,
+          email: session.user.email,
+          subscription_tier: 'free',
+          updated_at: new Date().toISOString()
+        })
+
+      if (profileError) {
+        console.error('Error creating profile:', profileError)
+      }
+
       // After successful authentication, redirect to dashboard
       return NextResponse.redirect(`${origin}/dashboard`)
     }

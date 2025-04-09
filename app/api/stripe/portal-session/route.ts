@@ -1,56 +1,63 @@
 // app/api/stripe/portal-session/route.ts
-import { NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
-import Stripe from 'stripe';
+import { createServerClient, type CookieOptions } from '@supabase/ssr'
+import { cookies } from 'next/headers'
+import { NextResponse } from 'next/server'
+import Stripe from 'stripe'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2025-03-31.basil',
-});
+  apiVersion: '2025-03-31.basil'
+})
 
 export async function POST(request: Request) {
   try {
-    const { returnUrl } = await request.json();
-    
-    // Get the user from Supabase auth
-    const supabase = createRouteHandlerClient({ cookies });
-    const { data: { session } } = await supabase.auth.getSession();
-    
-    if (!session?.user) {
-      return NextResponse.json(
-        { error: 'You must be logged in to access the billing portal' },
-        { status: 401 }
-      );
+    const cookieStore = await cookies()
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          get(name: string) {
+            return cookieStore.get(name)?.value
+          },
+          set(name: string, value: string, options: CookieOptions) {
+            cookieStore.set({ name, value, ...options })
+          },
+          remove(name: string, options: CookieOptions) {
+            cookieStore.set({ name, value: '', ...options, maxAge: 0 })
+          },
+        },
+      }
+    )
+
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-    
-    const userId = session.user.id;
-    
-    // Get the customer ID from the database
-    const { data: customerData } = await supabase
-      .from('stripe_customers')
+
+    const { data: profile } = await supabase
+      .from('profiles')
       .select('stripe_customer_id')
-      .eq('user_id', userId)
-      .single();
-    
-    if (!customerData?.stripe_customer_id) {
+      .eq('id', session.user.id)
+      .single()
+
+    if (!profile?.stripe_customer_id) {
       return NextResponse.json(
-        { error: 'No Stripe customer found for this user' },
-        { status: 404 }
-      );
+        { error: 'No Stripe customer ID found' },
+        { status: 400 }
+      )
     }
-    
-    // Create a billing portal session
+
     const portalSession = await stripe.billingPortal.sessions.create({
-      customer: customerData.stripe_customer_id,
-      return_url: returnUrl,
-    });
-    
-    return NextResponse.json({ url: portalSession.url });
+      customer: profile.stripe_customer_id,
+      return_url: `${process.env.NEXT_PUBLIC_SITE_URL}/dashboard`,
+    })
+
+    return NextResponse.json({ url: portalSession.url })
   } catch (error) {
-    console.error('Error creating portal session:', error);
+    console.error('Error creating portal session:', error)
     return NextResponse.json(
-      { error: 'Failed to create portal session' },
+      { error: 'Error creating portal session' },
       { status: 500 }
-    );
+    )
   }
 }
