@@ -1,10 +1,6 @@
 import { NextResponse } from 'next/server'
-import Stripe from 'stripe'
+import { getServerStripe } from '@/lib/stripe'
 import { createClient } from '@/lib/supabase/server'
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2023-10-16',
-})
 
 export async function POST(req: Request) {
   try {
@@ -18,7 +14,7 @@ export async function POST(req: Request) {
     }
 
     // Create or get customer
-    const supabase = createClient()
+    const supabase = await createClient()
     const { data: profile } = await supabase
       .from('profiles')
       .select('stripe_customer_id')
@@ -28,6 +24,7 @@ export async function POST(req: Request) {
     let customerId = profile?.stripe_customer_id
 
     if (!customerId) {
+      const stripe = getServerStripe()
       const customer = await stripe.customers.create({
         email,
       })
@@ -41,6 +38,7 @@ export async function POST(req: Request) {
     }
 
     // Create checkout session
+    const stripe = getServerStripe()
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       payment_method_types: ['card'],
@@ -58,7 +56,7 @@ export async function POST(req: Request) {
       },
     })
 
-    return NextResponse.json({ sessionId: session.id })
+    return NextResponse.json({ url: session.url })
   } catch (error) {
     console.error('Error creating checkout session:', error)
     return NextResponse.json(

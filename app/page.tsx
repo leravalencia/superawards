@@ -4,8 +4,10 @@ import TestimonialsSection from "@/components/testimonials-section"
 import CTASection from "@/components/cta-section"
 import Footer from "@/components/footer"
 import { PricingSection } from "@/components/pricing-section"
+import SuccessStories from "@/components/success-stories"
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from "next/headers"
+import Link from "next/link"
 
 export default async function Home() {
   const cookieStore = cookies()
@@ -40,7 +42,7 @@ export default async function Home() {
     <div className="flex flex-col min-h-screen">
       <HeroSection />
       <FeaturesSection />
-      <TestimonialsSection />
+      <SuccessStories />
       <div className="container mx-auto px-4 py-16">
         <div className="text-center mb-16">
           <h1 className="text-4xl md:text-5xl font-extrabold mb-6">
@@ -54,6 +56,14 @@ export default async function Home() {
           currentPlan={currentPlan} 
           isAuthenticated={!!session}
         />
+        <div className="text-center mt-8">
+          <Link 
+            href="/pricing" 
+            className="text-indigo-600 hover:text-indigo-800 font-medium"
+          >
+            View detailed pricing →
+          </Link>
+        </div>
       </div>
       <CTASection />
       <Footer />

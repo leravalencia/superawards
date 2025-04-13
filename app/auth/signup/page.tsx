@@ -4,29 +4,10 @@ import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
-import { loadStripe } from '@stripe/stripe-js'
+import { getStripe } from "@/lib/stripe"
 import { Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-
-// Initialize Stripe
-let stripePromise: Promise<any> | null = null
-const getStripe = () => {
-  if (!stripePromise) {
-    const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
-    if (!publishableKey) {
-      console.error('Stripe publishable key is not defined')
-      return null
-    }
-    try {
-      stripePromise = loadStripe(publishableKey)
-    } catch (error) {
-      console.error('Failed to load Stripe:', error)
-      return null
-    }
-  }
-  return stripePromise
-}
 
 interface PricingTier {
   title: string
@@ -127,38 +108,8 @@ export default function SignUpPage() {
         return
       }
 
-      // For paid plans, create Stripe checkout session
-      const response = await fetch('/api/stripe/create-checkout-session', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          priceId: selectedTier.priceId,
-          email,
-          successUrl: `${siteUrl}/dashboard?subscription=success`,
-          cancelUrl: `${siteUrl}/auth/signup?canceled=true`,
-        }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to create checkout session')
-      }
-
-      const { sessionId } = await response.json()
-      const stripe = await getStripe()
-      
-      if (!stripe) {
-        throw new Error('Failed to load Stripe. Please try again later.')
-      }
-
-      // Redirect to Stripe checkout
-      const { error: stripeError } = await stripe.redirectToCheckout({ sessionId })
-      
-      if (stripeError) {
-        throw stripeError
-      }
+      // For paid plans, redirect to payment page
+      router.push(`/checkout/${selectedTier.title.toLowerCase()}`)
     } catch (error: any) {
       console.error('Signup error:', error)
       setError(error.message || 'An error occurred during signup')
