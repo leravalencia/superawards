@@ -18,6 +18,18 @@ export async function GET() {
   try {
     console.log('Fetching Stripe prices...')
     
+    // First, verify the API key is working
+    try {
+      await stripe.balance.retrieve()
+      console.log('Stripe API key is valid')
+    } catch (error: any) {
+      console.error('Stripe API key validation failed:', error.message)
+      return NextResponse.json(
+        { error: 'Invalid Stripe API key' },
+        { status: 500 }
+      )
+    }
+    
     const prices = await stripe.prices.list({
       active: true,
       type: 'recurring',

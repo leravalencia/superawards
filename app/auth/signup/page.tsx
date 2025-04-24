@@ -31,11 +31,24 @@ export default function SignUpPage() {
 
   const fetchPrices = async () => {
     try {
+      console.log('Fetching prices from Stripe...')
       const response = await fetch('/api/stripe/get-prices')
+      console.log('Response status:', response.status)
+      
       if (!response.ok) {
-        throw new Error('Failed to fetch prices')
+        const errorData = await response.json()
+        console.error('Error response:', errorData)
+        throw new Error(errorData.error || 'Failed to fetch prices')
       }
+      
       const data = await response.json()
+      console.log('Fetched prices:', data)
+      
+      if (!data.prices || !Array.isArray(data.prices)) {
+        console.error('Invalid prices data:', data)
+        throw new Error('Invalid pricing data received')
+      }
+      
       setPrices(data.prices)
       
       // Set initial selected price based on URL parameter
@@ -53,18 +66,9 @@ export default function SignUpPage() {
     }
   }
 
-  const getFeatures = (price: PriceWithProduct) => {
-    // Try to get features from product metadata
-    if (price.product.metadata?.features) {
-      try {
-        return JSON.parse(price.product.metadata.features)
-      } catch (e) {
-        console.warn('Failed to parse features from metadata')
-      }
-    }
-
-    // Default features based on price
-    const defaultFeatures = {
+  const getFeatures = (price: PriceWithProduct | { nickname: string, product?: { name: string } }) => {
+    // Default features for each tier
+    const defaultFeatures: Record<string, string[]> = {
       free: [
         "5 awards per month",
         "Basic templates",
@@ -87,9 +91,30 @@ export default function SignUpPage() {
       ]
     }
 
-    const productName = price.product.name.toLowerCase()
-    if (productName.includes('premium')) return defaultFeatures.premium
-    if (productName.includes('business')) return defaultFeatures.business
+    // If it's a Stripe price object
+    if ('product' in price && price.product) {
+      const productName = price.product.name?.toLowerCase() || ''
+      // Try to get features from metadata if available
+      const stripeProduct = price.product as Stripe.Product
+      if (stripeProduct.metadata?.features) {
+        try {
+          return JSON.parse(stripeProduct.metadata.features)
+        } catch (e) {
+          console.warn('Failed to parse features from metadata')
+        }
+      }
+      // Fall back to default features based on product name
+      if (productName.includes('premium')) return defaultFeatures.premium
+      if (productName.includes('business')) return defaultFeatures.business
+      if (productName.includes('free')) return defaultFeatures.free
+    }
+
+    // For the hardcoded free plan
+    if ('nickname' in price && price.nickname) {
+      const plan = price.nickname.toLowerCase() as keyof typeof defaultFeatures
+      return defaultFeatures[plan] || defaultFeatures.free
+    }
+
     return defaultFeatures.free
   }
 
@@ -153,6 +178,35 @@ export default function SignUpPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Free Plan */}
+          <Card 
+            className={`cursor-pointer transition-all ${
+              !selectedPrice 
+                ? 'ring-2 ring-indigo-600' 
+                : 'hover:shadow-lg'
+            }`}
+            onClick={() => setSelectedPrice(null)}
+          >
+            <CardHeader>
+              <CardTitle>Free</CardTitle>
+              <CardDescription>Perfect for getting started</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold mb-4">
+                $0<span className="text-sm text-gray-500">/month</span>
+              </div>
+              <ul className="space-y-2 mb-6">
+                {getFeatures({ nickname: 'free' }).map((feature: string) => (
+                  <li key={feature} className="flex items-center">
+                    <Check className="w-4 h-4 mr-2 text-green-500" />
+                    {feature}
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+
+          {/* Stripe Plans */}
           {prices.map((price) => (
             <Card 
               key={price.id}
