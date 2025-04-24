@@ -101,6 +101,15 @@ export default function LoginPage() {
               Don't have an account? Sign up
             </Link>
           </div>
+
+          <div className="text-sm text-center">
+            <Link
+              href="/auth/forgot-password"
+              className="font-medium text-indigo-600 hover:text-indigo-500"
+            >
+              Forgot your password?
+            </Link>
+          </div>
         </form>
       </div>
     </div>
