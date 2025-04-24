@@ -1,5 +1,6 @@
 import Link from "next/link"
 import { Zap } from "lucide-react"
+import Image from "next/image"
 
 export default function HeroSection() {
   return (
@@ -48,13 +49,13 @@ export default function HeroSection() {
             </p>
             <div className="flex flex-wrap gap-4">
               <Link
-                href="/signup"
+                href="/auth/signup"
                 className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-red-600 text-white hover:bg-red-700 hover:scale-105 active:scale-95 hover:shadow-lg hover:shadow-red-600/30 active:shadow-md h-12 px-8 py-3 text-lg transform hover:-translate-y-1 active:translate-y-0"
               >
                 Get Started for Free
               </Link>
               <Link
-                href="#pricing"
+                href="/pricing"
                 className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border-2 border-white text-white hover:bg-white/20 hover:scale-105 active:scale-95 hover:shadow-lg hover:shadow-white/20 active:shadow-md h-12 px-8 py-3 text-lg transform hover:-translate-y-1 active:translate-y-0"
               >
                 View Pricing
@@ -64,11 +65,22 @@ export default function HeroSection() {
           <div className="md:w-1/2">
             <div className="relative">
               <div className="absolute -inset-4 bg-red-600 rounded-lg blur-lg opacity-50"></div>
-              <img
-                src="/placeholder.svg?height=400&width=500"
-                alt="Award-AI Platform Preview"
-                className="relative rounded-lg shadow-2xl border-4 border-white"
-              />
+              <div className="relative rounded-lg shadow-2xl border-4 border-white overflow-hidden bg-gradient-to-br from-gray-900 to-black p-6">
+                <div className="relative aspect-[4/3] w-full">
+                  <Image
+                    src="https://i.postimg.cc/d1rfmWCz/since-2030.png"
+                    alt="Award AI Platform Interface"
+                    fill
+                    className="object-contain rounded-md"
+                    priority
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+                  <div className="absolute bottom-4 left-4 right-4 text-white">
+                    <h3 className="text-2xl font-bold mb-2">Discover Awards</h3>
+              
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>

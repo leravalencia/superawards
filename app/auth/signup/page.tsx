@@ -4,80 +4,102 @@ import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
-import { getStripe } from "@/lib/stripe"
 import { Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import type { Stripe } from 'stripe'
 
-interface PricingTier {
-  title: string
-  description: string
-  price: string
-  features: string[]
-  priceId: string
-  isPopular?: boolean
+type PriceWithProduct = Stripe.Price & {
+  product: Stripe.Product
 }
-
-const pricingTiers: PricingTier[] = [
-  {
-    title: "Free",
-    description: "Perfect for getting started",
-    price: "$0",
-    features: [
-      "5 awards per month",
-      "Basic templates",
-      "Email support",
-      "Community access"
-    ],
-    priceId: ""
-  },
-  {
-    title: "Premium",
-    description: "Best for growing teams",
-    price: "$29",
-    features: [
-      "Unlimited awards",
-      "Premium templates",
-      "Priority support",
-      "Custom branding",
-      "Analytics dashboard"
-    ],
-    priceId: process.env.NEXT_PUBLIC_STRIPE_PREMIUM_PRICE_ID!,
-    isPopular: true
-  },
-  {
-    title: "Business",
-    description: "For large organizations",
-    price: "$99",
-    features: [
-      "Everything in Premium",
-      "Team management",
-      "API access",
-      "Custom integrations",
-      "Dedicated support"
-    ],
-    priceId: process.env.NEXT_PUBLIC_STRIPE_BUSINESS_PRICE_ID!
-  }
-]
 
 export default function SignUpPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const [selectedTier, setSelectedTier] = useState<PricingTier>(pricingTiers[0])
+  const [prices, setPrices] = useState<PriceWithProduct[]>([])
+  const [selectedPrice, setSelectedPrice] = useState<PriceWithProduct | null>(null)
   const router = useRouter()
   const searchParams = useSearchParams()
   const plan = searchParams.get('plan')
   const supabase = createClient()
 
-  // Set initial tier based on URL parameter
-  useState(() => {
-    if (plan) {
-      const tier = pricingTiers.find(t => t.title.toLowerCase() === plan.toLowerCase())
-      if (tier) setSelectedTier(tier)
+  useEffect(() => {
+    fetchPrices()
+  }, [])
+
+  const fetchPrices = async () => {
+    try {
+      const response = await fetch('/api/stripe/get-prices')
+      if (!response.ok) {
+        throw new Error('Failed to fetch prices')
+      }
+      const data = await response.json()
+      setPrices(data.prices)
+      
+      // Set initial selected price based on URL parameter
+      if (plan && data.prices.length > 0) {
+        const matchingPrice = data.prices.find(
+          (p: PriceWithProduct) => p.product.name.toLowerCase() === plan.toLowerCase()
+        )
+        if (matchingPrice) {
+          setSelectedPrice(matchingPrice)
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching prices:', err)
+      setError('Failed to load pricing information')
     }
-  })
+  }
+
+  const getFeatures = (price: PriceWithProduct) => {
+    // Try to get features from product metadata
+    if (price.product.metadata?.features) {
+      try {
+        return JSON.parse(price.product.metadata.features)
+      } catch (e) {
+        console.warn('Failed to parse features from metadata')
+      }
+    }
+
+    // Default features based on price
+    const defaultFeatures = {
+      free: [
+        "5 awards per month",
+        "Basic templates",
+        "Email support",
+        "Community access"
+      ],
+      premium: [
+        "Unlimited awards",
+        "Premium templates",
+        "Priority support",
+        "Custom branding",
+        "Analytics dashboard"
+      ],
+      business: [
+        "Everything in Premium",
+        "Team management",
+        "API access",
+        "Custom integrations",
+        "Dedicated support"
+      ]
+    }
+
+    const productName = price.product.name.toLowerCase()
+    if (productName.includes('premium')) return defaultFeatures.premium
+    if (productName.includes('business')) return defaultFeatures.business
+    return defaultFeatures.free
+  }
+
+  const formatPrice = (price: PriceWithProduct) => {
+    const amount = (price.unit_amount || 0) / 100
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: price.currency,
+    }).format(amount)
+  }
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -94,22 +116,22 @@ export default function SignUpPage() {
         options: {
           emailRedirectTo: `${siteUrl}/auth/callback`,
           data: {
-            plan: selectedTier.title.toLowerCase()
+            plan: selectedPrice?.product.name.toLowerCase()
           }
         },
       })
 
       if (signUpError) throw signUpError
 
-      // If it's a free plan, just show success message
-      if (!selectedTier.priceId) {
+      // If it's a free plan or no plan selected, just show success message
+      if (!selectedPrice?.id) {
         setError("Check your email for the confirmation link!")
         router.push('/auth/login')
         return
       }
 
-      // For paid plans, redirect to payment page
-      router.push(`/checkout/${selectedTier.title.toLowerCase()}`)
+      // For paid plans, redirect to checkout
+      router.push(`/checkout/${selectedPrice.product.name.toLowerCase()}`)
     } catch (error: any) {
       console.error('Signup error:', error)
       setError(error.message || 'An error occurred during signup')
@@ -123,32 +145,34 @@ export default function SignUpPage() {
       <div className="max-w-4xl w-full space-y-8">
         <div className="text-center">
           <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
-            Create your account
+            Choose Your Plan
           </h2>
           <p className="mt-2 text-sm text-gray-600">
-            Choose your plan and start your journey
+            Select a plan and create your account
           </p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {pricingTiers.map((tier) => (
+          {prices.map((price) => (
             <Card 
-              key={tier.title}
+              key={price.id}
               className={`cursor-pointer transition-all ${
-                selectedTier.title === tier.title 
+                selectedPrice?.id === price.id 
                   ? 'ring-2 ring-indigo-600' 
                   : 'hover:shadow-lg'
               }`}
-              onClick={() => setSelectedTier(tier)}
+              onClick={() => setSelectedPrice(price)}
             >
               <CardHeader>
-                <CardTitle>{tier.title}</CardTitle>
-                <CardDescription>{tier.description}</CardDescription>
+                <CardTitle>{price.product.name}</CardTitle>
+                <CardDescription>{price.product.description}</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold mb-4">{tier.price}<span className="text-sm text-gray-500">/month</span></div>
+                <div className="text-3xl font-bold mb-4">
+                  {formatPrice(price)}<span className="text-sm text-gray-500">/month</span>
+                </div>
                 <ul className="space-y-2 mb-6">
-                  {tier.features.map((feature) => (
+                  {getFeatures(price).map((feature: string) => (
                     <li key={feature} className="flex items-center">
                       <Check className="w-4 h-4 mr-2 text-green-500" />
                       {feature}
@@ -208,7 +232,7 @@ export default function SignUpPage() {
               disabled={loading}
               className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
             >
-              {loading ? "Creating account..." : `Sign up for ${selectedTier.title}`}
+              {loading ? "Creating account..." : `Sign up${selectedPrice ? ` for ${selectedPrice.product.name}` : ''}`}
             </Button>
           </div>
 

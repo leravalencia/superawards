@@ -1,179 +1,252 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { createClient } from "@/lib/supabase"
+import { useRouter, useSearchParams } from "next/navigation"
+import Link from "next/link"
+import { getStripe } from "@/lib/stripe"
 import { Check } from "lucide-react"
-import { useRouter } from "next/navigation"
-import { createClient } from '@supabase/supabase-js'
-import { loadStripe } from '@stripe/stripe-js'
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import type { Stripe } from 'stripe'
 
-// Initialize Stripe
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!)
+type PriceWithProduct = Stripe.Price & {
+  product: Stripe.Product
+}
 
-const pricingPlans = [
-  {
-    name: "Free",
-    price: "$0",
-    description: "Perfect for getting started with award discovery",
-    features: [
-      "Basic award search",
-      "Up to 5 saved awards",
-      "Email notifications",
-      "Basic application templates"
-    ],
-    priceId: "free",
-    buttonText: "Get Started"
-  },
-  {
-    name: "Premium",
-    price: "$49",
-    description: "For businesses serious about winning awards",
-    features: [
-      "Advanced award search",
-      "Unlimited saved awards",
-      "AI-powered application support",
-      "Priority email support",
-      "Basic PR package",
-      "Analytics dashboard"
-    ],
-    priceId: "price_1P8X2XKX8X8X8X8X8X8X8X8X",
-    buttonText: "Start Free Trial"
-  },
-  {
-    name: "Business",
-    price: "$99",
-    description: "For organizations with multiple award goals",
-    features: [
-      "Everything in Premium",
-      "Team collaboration",
-      "Advanced PR package",
-      "Dedicated account manager",
-      "Custom award strategy",
-      "Priority application review"
-    ],
-    priceId: "price_1P8X2XKX8X8X8X8X8X8X8X8X8",
-    buttonText: "Start Free Trial"
-  }
-]
-
-export default function PricingPage() {
+export default function SignUpPage() {
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState("")
+  const [prices, setPrices] = useState<PriceWithProduct[]>([])
+  const [selectedPrice, setSelectedPrice] = useState<PriceWithProduct | null>(null)
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const plan = searchParams.get('plan')
+  const supabase = createClient()
 
-  const handleCheckout = async (priceId: string) => {
+  useEffect(() => {
+    fetchPrices()
+  }, [])
+
+  const fetchPrices = async () => {
     try {
-      setLoading(true)
-      setError("")
+      const response = await fetch('/api/stripe/get-prices')
+      if (!response.ok) {
+        throw new Error('Failed to fetch prices')
+      }
+      const data = await response.json()
+      setPrices(data.prices)
+      
+      // Set initial selected price based on URL parameter
+      if (plan && data.prices.length > 0) {
+        const matchingPrice = data.prices.find(
+          (p: PriceWithProduct) => p.product.name.toLowerCase() === plan.toLowerCase()
+        )
+        if (matchingPrice) {
+          setSelectedPrice(matchingPrice)
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching prices:', err)
+      setError('Failed to load pricing information')
+    }
+  }
 
-      if (priceId === "free") {
-        router.push("/auth/signup")
+  const getFeatures = (price: PriceWithProduct) => {
+    // Try to get features from product metadata
+    if (price.product.metadata?.features) {
+      try {
+        return JSON.parse(price.product.metadata.features)
+      } catch (e) {
+        console.warn('Failed to parse features from metadata')
+      }
+    }
+
+    // Default features based on price
+    const defaultFeatures = {
+      free: [
+        "5 awards per month",
+        "Basic templates",
+        "Email support",
+        "Community access"
+      ],
+      premium: [
+        "Unlimited awards",
+        "Premium templates",
+        "Priority support",
+        "Custom branding",
+        "Analytics dashboard"
+      ],
+      business: [
+        "Everything in Premium",
+        "Team management",
+        "API access",
+        "Custom integrations",
+        "Dedicated support"
+      ]
+    }
+
+    const productName = price.product.name.toLowerCase()
+    if (productName.includes('premium')) return defaultFeatures.premium
+    if (productName.includes('business')) return defaultFeatures.business
+    return defaultFeatures.free
+  }
+
+  const formatPrice = (price: PriceWithProduct) => {
+    const amount = (price.unit_amount || 0) / 100
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: price.currency,
+    }).format(amount)
+  }
+
+  const handleSignUp = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+    setLoading(true)
+
+    try {
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+      
+      // First, sign up the user
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${siteUrl}/auth/callback`,
+          data: {
+            plan: selectedPrice?.product.name.toLowerCase()
+          }
+        },
+      })
+
+      if (signUpError) throw signUpError
+
+      // If it's a free plan or no plan selected, just show success message
+      if (!selectedPrice?.id) {
+        setError("Check your email for the confirmation link!")
+        router.push('/auth/login')
         return
       }
 
-      // Get Stripe instance
-      const stripe = await stripePromise
-      if (!stripe) {
-        throw new Error("Stripe failed to initialize")
-      }
-
-      const response = await fetch("/api/stripe/create-checkout-session", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          priceId,
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error("Failed to create checkout session")
-      }
-
-      const { sessionId } = await response.json()
-      
-      // Redirect to Stripe Checkout
-      const { error: stripeError } = await stripe.redirectToCheckout({
-        sessionId,
-      })
-
-      if (stripeError) {
-        throw stripeError
-      }
-    } catch (err) {
-      setError("Something went wrong. Please try again.")
-      console.error(err)
+      // For paid plans, redirect to checkout
+      router.push(`/checkout/${selectedPrice.product.name.toLowerCase()}`)
+    } catch (error: any) {
+      console.error('Signup error:', error)
+      setError(error.message || 'An error occurred during signup')
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-16">
-      <div className="container mx-auto px-4">
-        <div className="text-center mb-16">
-          <h1 className="text-4xl font-bold mb-4">Choose Your Plan</h1>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Select the plan that best fits your award goals and budget
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-4xl w-full space-y-8">
+        <div className="text-center">
+          <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
+            Choose Your Plan
+          </h2>
+          <p className="mt-2 text-sm text-gray-600">
+            Select a plan and create your account
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {pricingPlans.map((plan) => (
-            <Card key={plan.name} className="flex flex-col">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {prices.map((price) => (
+            <Card 
+              key={price.id}
+              className={`cursor-pointer transition-all ${
+                selectedPrice?.id === price.id 
+                  ? 'ring-2 ring-indigo-600' 
+                  : 'hover:shadow-lg'
+              }`}
+              onClick={() => setSelectedPrice(price)}
+            >
               <CardHeader>
-                <CardTitle className="text-2xl">{plan.name}</CardTitle>
-                <div className="mt-4">
-                  <span className="text-4xl font-bold">{plan.price}</span>
-                  <span className="text-gray-500">/month</span>
-                </div>
-                <CardDescription className="mt-2">{plan.description}</CardDescription>
+                <CardTitle>{price.product.name}</CardTitle>
+                <CardDescription>{price.product.description}</CardDescription>
               </CardHeader>
-              <CardContent className="flex-grow">
-                <ul className="space-y-4">
-                  {plan.features.map((feature) => (
+              <CardContent>
+                <div className="text-3xl font-bold mb-4">
+                  {formatPrice(price)}<span className="text-sm text-gray-500">/month</span>
+                </div>
+                <ul className="space-y-2 mb-6">
+                  {getFeatures(price).map((feature: string) => (
                     <li key={feature} className="flex items-center">
-                      <Check className="h-5 w-5 text-green-500 mr-2" />
-                      <span>{feature}</span>
+                      <Check className="w-4 h-4 mr-2 text-green-500" />
+                      {feature}
                     </li>
                   ))}
                 </ul>
               </CardContent>
-              <CardFooter>
-                <Button
-                  onClick={() => handleCheckout(plan.priceId)}
-                  disabled={loading}
-                  className="w-full"
-                >
-                  {loading ? "Loading..." : plan.buttonText}
-                </Button>
-              </CardFooter>
             </Card>
           ))}
         </div>
 
-        {error && (
-          <div className="mt-8 text-center text-red-500">
-            {error}
+        <form className="mt-8 space-y-6" onSubmit={handleSignUp}>
+          <div className="rounded-md shadow-sm -space-y-px">
+            <div>
+              <label htmlFor="email-address" className="sr-only">
+                Email address
+              </label>
+              <input
+                id="email-address"
+                name="email"
+                type="email"
+                autoComplete="email"
+                required
+                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                placeholder="Email address"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
+            <div>
+              <label htmlFor="password" className="sr-only">
+                Password
+              </label>
+              <input
+                id="password"
+                name="password"
+                type="password"
+                autoComplete="new-password"
+                required
+                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
           </div>
-        )}
 
-        <div className="mt-16 text-center">
-          <h2 className="text-2xl font-bold mb-4">Need a Custom Solution?</h2>
-          <p className="text-gray-600 mb-8">
-            Contact us for enterprise pricing and custom features
-          </p>
-          <Button
-            onClick={() => router.push("/contact")}
-            variant="outline"
-          >
-            Contact Sales
-          </Button>
-        </div>
+          {error && (
+            <div className={`text-sm text-center ${error.includes('Check your email') ? 'text-green-600' : 'text-red-500'}`}>
+              {error}
+            </div>
+          )}
+
+          <div>
+            <Button
+              type="submit"
+              disabled={loading}
+              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            >
+              {loading ? "Creating account..." : `Sign up${selectedPrice ? ` for ${selectedPrice.product.name}` : ''}`}
+            </Button>
+          </div>
+
+          <div className="text-sm text-center">
+            <Link
+              href="/auth/login"
+              className="font-medium text-indigo-600 hover:text-indigo-500"
+            >
+              Already have an account? Sign in
+            </Link>
+          </div>
+        </form>
       </div>
     </div>
   )
-}
-
+} 
