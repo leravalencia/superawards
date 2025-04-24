@@ -2,106 +2,121 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase'
-import { Button } from '@/components/ui/button'
+import { loadStripe } from '@stripe/stripe-js'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { Loader2 } from 'lucide-react'
 
-interface CheckoutPageProps {
-  params: {
-    plan: string
-  }
-}
+// Initialize Stripe
+const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!)
 
-export default function CheckoutPage({ params }: CheckoutPageProps) {
-  const router = useRouter()
-  const [loading, setLoading] = useState(true)
+export default function CheckoutPage({ params }: { params: { plan: string } }) {
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const supabase = createClient()
+  const router = useRouter()
+  const { plan } = params
 
   useEffect(() => {
-    const handleCheckout = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession()
-        if (!session?.user) {
-          router.push('/auth/login')
-          return
-        }
+    // If URL has a success parameter, show a success message
+    const query = new URLSearchParams(window.location.search)
+    if (query.get('success')) {
+      // Handle success
+    }
+    
+    if (query.get('canceled')) {
+      setError('Payment canceled. Please try again.')
+    }
+  }, [])
 
-        const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
-        const res = await fetch('/api/stripe/create-checkout-session', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: session.user.email,
-            priceId: getPriceId(params.plan),
-            successUrl: `${siteUrl}/dashboard?subscription=success`,
-            cancelUrl: `${siteUrl}/checkout/${params.plan}?canceled=true`,
-          }),
-        })
+  const handleCheckout = async () => {
+    try {
+      setLoading(true)
+      setError(null)
 
-        if (!res.ok) {
-          const errorData = await res.json()
-          throw new Error(errorData.error || 'Failed to create checkout session')
-        }
-
-        const { url } = await res.json()
-        if (url) {
-          window.location.href = url
-        } else {
-          throw new Error('Failed to get checkout URL')
-        }
-      } catch (error: any) {
-        console.error('Checkout error:', error)
-        setError(error.message || 'An error occurred during checkout')
-      } finally {
-        setLoading(false)
+      // Get price ID based on plan
+      let priceId
+      switch (plan.toLowerCase()) {
+        case 'premium':
+          priceId = process.env.NEXT_PUBLIC_STRIPE_PREMIUM_PRICE_ID
+          break
+        case 'business':
+          priceId = process.env.NEXT_PUBLIC_STRIPE_BUSINESS_PRICE_ID
+          break
+        default:
+          throw new Error('Invalid plan selected')
       }
-    }
 
-    handleCheckout()
-  }, [params.plan, router, supabase])
+      // Create checkout session
+      const response = await fetch('/api/stripe/create-checkout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ priceId }),
+      })
 
-  const getPriceId = (plan: string) => {
-    switch (plan) {
-      case 'premium':
-        return process.env.NEXT_PUBLIC_STRIPE_PREMIUM_PRICE_ID
-      case 'business':
-        return process.env.NEXT_PUBLIC_STRIPE_BUSINESS_PRICE_ID
-      default:
-        throw new Error('Invalid plan')
+      const data = await response.json()
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create checkout session')
+      }
+
+      // Redirect to Stripe checkout
+      if (data.url) {
+        window.location.href = data.url
+      } else {
+        throw new Error('No checkout URL returned')
+      }
+    } catch (err: any) {
+      console.error('Checkout error:', err)
+      setError(err.message || 'An error occurred during checkout')
+    } finally {
+      setLoading(false)
     }
   }
 
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="h-8 w-8 animate-spin" />
-          <p>Preparing your checkout...</p>
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full space-y-8">
+        <div className="text-center">
+          <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
+            Complete Your Subscription
+          </h2>
+          <p className="mt-2 text-sm text-gray-600">
+            You're signing up for the {plan.charAt(0).toUpperCase() + plan.slice(1)} plan
+          </p>
         </div>
-      </div>
-    )
-  }
 
-  if (error) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <Card className="w-full max-w-md">
+        <Card>
           <CardHeader>
-            <CardTitle>Checkout Error</CardTitle>
-            <CardDescription>There was an error processing your checkout</CardDescription>
+            <CardTitle>Subscription Details</CardTitle>
+            <CardDescription>
+              Click the button below to proceed to secure payment
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-red-500 mb-4">{error}</p>
-            <Button onClick={() => router.push('/pricing')}>
-              Back to Pricing
+            {error && (
+              <div className="mb-4 text-sm text-red-600">
+                {error}
+              </div>
+            )}
+            <Button
+              onClick={handleCheckout}
+              disabled={loading}
+              className="w-full"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                'Proceed to Payment'
+              )}
             </Button>
           </CardContent>
         </Card>
       </div>
-    )
-  }
-
-  return null
+    </div>
+  )
 }

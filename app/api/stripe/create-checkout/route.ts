@@ -3,7 +3,11 @@ import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: '2025-03-31.basil',
+  typescript: true,
+});
+
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 
 export async function POST(request: Request) {
@@ -23,13 +27,13 @@ export async function POST(request: Request) {
     }
     
     // Check if customer already exists
-    const { data: customers } = await supabase
+    const { data: customerData } = await supabase
       .from('customers')
       .select('stripe_customer_id')
       .eq('user_id', session.user.id)
       .single();
     
-    let customerId = customers?.stripe_customer_id;
+    let customerId = customerData?.stripe_customer_id;
     
     // If no customer exists, create one
     if (!customerId) {
@@ -62,11 +66,25 @@ export async function POST(request: Request) {
       success_url: `${siteUrl}/dashboard?success=true`,
       cancel_url: `${siteUrl}/pricing?canceled=true`,
       allow_promotion_codes: true,
+      billing_address_collection: 'auto',
+      customer_update: {
+        address: 'auto',
+      },
+      metadata: {
+        user_id: session.user.id,
+      },
     });
     
-    return NextResponse.json({ sessionId: checkoutSession.id, url: checkoutSession.url });
+    if (!checkoutSession.url) {
+      throw new Error('Failed to create checkout session URL');
+    }
+    
+    return NextResponse.json({ url: checkoutSession.url });
   } catch (error: any) {
     console.error('Stripe checkout error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: error.message || 'Failed to create checkout session' },
+      { status: 500 }
+    );
   }
 }

@@ -141,12 +141,19 @@ export default function SignUpPage() {
         options: {
           emailRedirectTo: `${siteUrl}/auth/callback`,
           data: {
-            plan: selectedPrice?.product.name.toLowerCase()
+            plan: selectedPrice?.product.name.toLowerCase() || 'free'
           }
         },
       })
 
-      if (signUpError) throw signUpError
+      if (signUpError) {
+        console.error('Supabase signup error:', signUpError)
+        throw new Error(signUpError.message)
+      }
+
+      if (!signUpData?.user) {
+        throw new Error('Failed to create user account')
+      }
 
       // If it's a free plan or no plan selected, just show success message
       if (!selectedPrice?.id) {
