@@ -4,7 +4,7 @@ import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
 import { cookies } from "next/headers"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import ManageSubscription from "@/components/subscription/manage-subscription"
+import { ManageSubscription } from "@/components/subscription/manage-subscription"
 
 export const metadata: Metadata = {
   title: "Settings",
@@ -66,7 +66,7 @@ export default async function SettingsPage() {
         
         <TabsContent value="subscription">
           <div className="space-y-8">
-            <ManageSubscription subscription={subscriptionDetails} />
+            <ManageSubscription currentPlan={subscriptionDetails.tier} />
             
             <Card>
               <CardHeader>
