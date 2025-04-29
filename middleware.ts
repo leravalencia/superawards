@@ -47,7 +47,7 @@ export async function middleware(request: NextRequest) {
   )
 
   const { data: { session } } = await supabase.auth.getSession()
-  console.log('Session in middleware:', session)
+  console.log('Session in middleware:', session?.user?.email)
 
   // If user is signed in and the current path is / redirect the user to /dashboard
   if (session && request.nextUrl.pathname === "/") {

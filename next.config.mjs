@@ -27,6 +27,17 @@ const nextConfig = {
     parallelServerBuildTraces: true,
     parallelServerCompiles: true,
   },
+  // Add HTTPS configuration for development
+  server: {
+    https: process.env.NODE_ENV === 'development' ? {
+      key: process.env.SSL_KEY_PATH,
+      cert: process.env.SSL_CERT_PATH,
+    } : undefined,
+  },
+  // Ensure environment variables are properly loaded
+  env: {
+    NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL || 'https://localhost:3000',
+  },
 }
 
 if (userConfig) {

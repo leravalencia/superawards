@@ -1,134 +1,111 @@
 "use client"
 
+import type React from "react"
 import { useEffect, useState } from "react"
-import { createClient } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
-import {
-  SidebarProvider,
-  Sidebar,
-  SidebarContent,
-  SidebarHeader,
-  SidebarFooter,
-  SidebarMenu,
-  SidebarMenuItem,
-  SidebarMenuButton,
-  SidebarInset,
-} from "@/components/ui/sidebar"
-import { Award, BarChart3, Calendar, FileText, Settings } from "lucide-react"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import Link from "next/link"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { DashboardSidebar } from "@/components/dashboard/sidebar"
+import { DashboardHeader } from "@/components/dashboard/header"
+import { Skeleton } from "@/components/ui/skeleton"
+import { UserProvider } from "@/context/user-context"
 
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const [user, setUser] = useState<any>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const router = useRouter()
-  const supabase = createClient()
+  const supabase = createClientComponentClient()
 
   useEffect(() => {
-    const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        setUser(user)
-      } else {
+    const checkAuth = async () => {
+      try {
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+        
+        if (sessionError) {
+          throw sessionError
+        }
+
+        if (!session) {
+          console.log("No session found, redirecting to login")
+          router.push('/auth/login')
+          return
+        }
+
+        // Verify the session is still valid
+        const { data: { user }, error: userError } = await supabase.auth.getUser()
+        
+        if (userError || !user) {
+          console.log("Invalid session, redirecting to login")
+          throw new Error('Invalid session')
+        }
+
+        console.log("User authenticated:", user.email)
+        setIsLoading(false)
+      } catch (error) {
+        console.error('Auth check error:', error)
+        setError('Authentication failed. Please try logging in again.')
         router.push('/auth/login')
       }
     }
 
-    getUser()
-  }, [router])
+    checkAuth()
 
-  if (!user) {
-    return null // or a loading spinner
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log("Auth state changed:", event, session?.user?.email)
+      if (event === 'SIGNED_OUT' || !session) {
+        router.push('/auth/login')
+      }
+    })
+
+    return () => {
+      subscription.unsubscribe()
+    }
+  }, [router, supabase])
+
+  if (error) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="text-center">
+          <h2 className="text-lg font-semibold text-red-600">{error}</h2>
+          <p className="mt-2 text-sm text-muted-foreground">Redirecting to login...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen bg-background">
+        <div className="flex flex-col flex-1">
+          <div className="h-16 border-b">
+            <div className="flex h-16 items-center px-4">
+              <Skeleton className="h-8 w-32" />
+            </div>
+          </div>
+          <main className="flex-1 p-6 md:p-8 pt-6">
+            <div className="space-y-4">
+              <Skeleton className="h-8 w-1/4" />
+              <Skeleton className="h-32 w-full" />
+              <Skeleton className="h-32 w-full" />
+            </div>
+          </main>
+        </div>
+      </div>
+    )
   }
 
   return (
-    <SidebarProvider>
-      <div className="flex min-h-screen bg-gray-50">
-        {/* Sidebar */}
-        <Sidebar className="border-r border-gray-200" variant="sidebar">
-          <SidebarHeader className="border-b border-gray-200">
-            <div className="flex items-center gap-2 px-2">
-              <div className="bg-red-600 p-2 rounded-lg">
-                <Award className="h-6 w-6 text-white" />
-              </div>
-              <span className="font-bold text-xl">Award-AI</span>
-            </div>
-          </SidebarHeader>
-
-          <SidebarContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <Link href="/dashboard">
-                    <BarChart3 className="h-5 w-5" />
-                    <span>Dashboard</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <Link href="/dashboard/my-awards">
-                    <Award className="h-5 w-5" />
-                    <span>My Awards</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <Link href="/dashboard/applications">
-                    <FileText className="h-5 w-5" />
-                    <span>Applications</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <Link href="/dashboard/deadlines">
-                    <Calendar className="h-5 w-5" />
-                    <span>Deadlines</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <Link href="/dashboard/settings">
-                    <Settings className="h-5 w-5" />
-                    <span>Settings</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarContent>
-
-          <SidebarFooter className="border-t border-gray-200 p-4">
-            <div className="flex items-center gap-3">
-              <Avatar>
-                <AvatarImage src="/placeholder.svg?height=32&width=32" alt="User" />
-                <AvatarFallback>{user.email?.charAt(0).toUpperCase()}</AvatarFallback>
-              </Avatar>
-              <div className="flex flex-col">
-                <span className="text-sm font-medium">{user.email}</span>
-                <span className="text-xs text-gray-500">Premium Plan</span>
-              </div>
-            </div>
-          </SidebarFooter>
-        </Sidebar>
-
-        {/* Main Content */}
-        <SidebarInset>
-          <main className="flex-1">
-            {children}
-          </main>
-        </SidebarInset>
+    <UserProvider>
+      <div className="flex min-h-screen bg-background">
+        <DashboardSidebar />
+        <div className="flex flex-col flex-1">
+          <DashboardHeader />
+          <main className="flex-1 p-6 md:p-8 pt-6">{children}</main>
+        </div>
       </div>
-    </SidebarProvider>
+    </UserProvider>
   )
 }
-
